@@ -8,17 +8,25 @@ module.exports = async function handler(req, res) {
   try {
     const body = req.body;
 
-    // amoCRM sends webhook as leads[add][0][id] (parsed by Vercel as nested object)
-    const leads = body?.leads?.add;
-    if (!leads || leads.length === 0) {
-      return res.status(200).json({ skipped: true });
+    // amoCRM sends form-encoded keys like: leads[add][0][id]
+    // Extract all lead IDs from flat keys
+    const leadIds = [];
+    for (const key of Object.keys(body || {})) {
+      const match = key.match(/^leads\[add\]\[(\d+)\]\[id\]$/);
+      if (match) {
+        leadIds.push(body[key]);
+      }
+    }
+
+    if (leadIds.length === 0) {
+      return res.status(200).json({ skipped: true, body });
     }
 
     const results = await Promise.all(
-      leads.map(async (lead) => {
+      leadIds.map(async (id) => {
         const newName = randomFourDigit();
-        await renameDeal(lead.id, newName);
-        return { id: lead.id, newName };
+        await renameDeal(id, newName);
+        return { id, newName };
       })
     );
 
