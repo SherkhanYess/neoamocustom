@@ -1,9 +1,6 @@
 {
   "version": 2,
   "functions": {
-    "api/webhook.js": {
-      "maxDuration": 10,
-      "runtime": "nodejs20.x"
-    }
+    "api/webhook.js": { "maxDuration": 10 }
   }
 }
