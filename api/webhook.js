@@ -3,7 +3,7 @@ const { renameDeal, randomFourDigit } = require('../lib/amocrm');
 function extractLeadIds(body) {
   const ids = [];
   for (const key of Object.keys(body)) {
-    if (/^leads\[add\]\[\d+\]\[id\]$/.test(key)) {
+    if (/^leads\[(add|status)\]\[\d+\]\[id\]$/.test(key)) {
       ids.push(body[key]);
     }
   }
