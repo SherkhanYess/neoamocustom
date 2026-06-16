@@ -2,14 +2,11 @@ const { renameDeal, randomFourDigit } = require('../lib/amocrm');
 
 function extractLeadIds(body) {
   const ids = [];
-
-  // Flat keys like leads[add][0][id] (amoCRM form-encoded)
   for (const key of Object.keys(body)) {
     if (/^leads\[add\]\[\d+\]\[id\]$/.test(key)) {
       ids.push(body[key]);
     }
   }
-
   return ids;
 }
 
@@ -18,16 +15,29 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const log = { step: 'start' };
+
   try {
     const body = req.body || {};
-    console.log('body:', JSON.stringify(body));
+    log.bodyKeys = Object.keys(body);
+    log.step = 'extracted_body';
 
     const leadIds = extractLeadIds(body);
-    console.log('leadIds:', leadIds);
+    log.leadIds = leadIds;
+    log.step = 'extracted_ids';
 
     if (leadIds.length === 0) {
-      return res.status(200).json({ skipped: true });
+      log.result = 'skipped';
+      console.log(JSON.stringify(log));
+      return res.status(200).json({ skipped: true, log });
     }
+
+    log.fetchAvailable = typeof fetch !== 'undefined';
+    log.subdomain = process.env.AMO_SUBDOMAIN;
+    log.tokenPrefix = process.env.AMO_ACCESS_TOKEN
+      ? process.env.AMO_ACCESS_TOKEN.slice(0, 8)
+      : 'MISSING';
+    log.step = 'before_rename';
 
     const results = await Promise.all(
       leadIds.map(async (id) => {
@@ -37,10 +47,14 @@ module.exports = async function handler(req, res) {
       })
     );
 
-    console.log('renamed:', results);
+    log.results = results;
+    log.step = 'done';
+    console.log(JSON.stringify(log));
     return res.status(200).json({ ok: true, results });
   } catch (err) {
-    console.error('error:', err.message);
-    return res.status(200).json({ error: err.message });
+    log.error = err.message;
+    log.step = 'error';
+    console.log(JSON.stringify(log));
+    return res.status(200).json({ error: err.message, log });
   }
 };
