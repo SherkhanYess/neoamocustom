@@ -1,21 +1,25 @@
 const { renameDeal, randomFourDigit } = require('../lib/amocrm');
 
-function getRawBody(req) {
-  return new Promise((resolve) => {
-    let raw = '';
-    req.on('data', (chunk) => { raw += chunk.toString(); });
-    req.on('end', () => resolve(raw));
-    req.on('error', () => resolve(''));
-  });
-}
-
-function extractLeadIds(flatBody) {
+function extractLeadIds(body) {
   const ids = [];
-  for (const key of Object.keys(flatBody)) {
+
+  // Case 1: Vercel parsed nested object — body.leads.add is array-like object
+  if (body?.leads?.add) {
+    const add = body.leads.add;
+    const entries = Array.isArray(add) ? add : Object.values(add);
+    for (const lead of entries) {
+      if (lead?.id) ids.push(String(lead.id));
+    }
+    return ids;
+  }
+
+  // Case 2: flat keys like leads[add][0][id]
+  for (const key of Object.keys(body)) {
     if (/^leads\[add\]\[\d+\]\[id\]$/.test(key)) {
-      ids.push(flatBody[key]);
+      ids.push(body[key]);
     }
   }
+
   return ids;
 }
 
@@ -25,24 +29,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Vercel may pre-parse body or leave it as stream — handle both
-    let flatBody = {};
-    if (req.body && typeof req.body === 'object') {
-      flatBody = req.body;
-    } else {
-      const raw = typeof req.body === 'string' ? req.body : await getRawBody(req);
-      console.log('raw body:', raw);
-      const params = new URLSearchParams(raw);
-      for (const [k, v] of params.entries()) flatBody[k] = v;
-    }
+    const body = req.body || {};
+    console.log('body:', JSON.stringify(body));
 
-    console.log('flatBody keys:', Object.keys(flatBody));
-
-    const leadIds = extractLeadIds(flatBody);
+    const leadIds = extractLeadIds(body);
     console.log('leadIds:', leadIds);
 
     if (leadIds.length === 0) {
-      return res.status(200).json({ skipped: true, keys: Object.keys(flatBody) });
+      return res.status(200).json({ skipped: true });
     }
 
     const results = await Promise.all(
@@ -53,7 +47,7 @@ module.exports = async function handler(req, res) {
       })
     );
 
-    console.log('results:', results);
+    console.log('renamed:', results);
     return res.status(200).json({ ok: true, results });
   } catch (err) {
     console.error('error:', err.message);
