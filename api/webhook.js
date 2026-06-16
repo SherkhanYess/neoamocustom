@@ -3,17 +3,7 @@ const { renameDeal, randomFourDigit } = require('../lib/amocrm');
 function extractLeadIds(body) {
   const ids = [];
 
-  // Case 1: Vercel parsed nested object — body.leads.add is array-like object
-  if (body?.leads?.add) {
-    const add = body.leads.add;
-    const entries = Array.isArray(add) ? add : Object.values(add);
-    for (const lead of entries) {
-      if (lead?.id) ids.push(String(lead.id));
-    }
-    return ids;
-  }
-
-  // Case 2: flat keys like leads[add][0][id]
+  // Flat keys like leads[add][0][id] (amoCRM form-encoded)
   for (const key of Object.keys(body)) {
     if (/^leads\[add\]\[\d+\]\[id\]$/.test(key)) {
       ids.push(body[key]);
